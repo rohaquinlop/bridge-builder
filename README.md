@@ -8,7 +8,7 @@ Local FastMCP server that exposes a two-agent Codex pipeline over stdio. It is d
 main product. Agent-specific wrappers sit on top of it:
 
 - Codex: install the skill from
-  `codex-skills/bridge-builder-delegate/SKILL.md`
+  `.agents/skills/bridge-builder-delegate/SKILL.md`
 - Claude Code: install the slash command from
   `.claude/commands/bridge-builder.md`
 
@@ -215,15 +215,26 @@ call the same `bridge-builder` MCP server tools.
 
 ### Codex
 
-Codex should use a skill, not a slash command. This repository includes a
-skill template at `codex-skills/bridge-builder-delegate/SKILL.md`.
+Codex should use a skill, not a slash command.
 
-Install it into your Codex skills directory:
+For repo-local Codex usage, this repository includes the skill at:
+
+```text
+.agents/skills/bridge-builder-delegate/SKILL.md
+```
+
+If you want to copy this skill into another repository, copy the template from:
+
+```text
+codex-skills/bridge-builder-delegate/SKILL.md
+```
+
+and place it at:
 
 ```bash
-mkdir -p "$CODEX_HOME/skills/bridge-builder-delegate"
+mkdir -p /path/to/target-repo/.agents/skills/bridge-builder-delegate
 cp codex-skills/bridge-builder-delegate/SKILL.md \
-  "$CODEX_HOME/skills/bridge-builder-delegate/SKILL.md"
+  /path/to/target-repo/.agents/skills/bridge-builder-delegate/SKILL.md
 ```
 
 Then paste prompts like:
