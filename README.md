@@ -9,6 +9,7 @@ The server exposes:
 - `analyze_request(request, repo_path)`: inspects a repository and asks Codex to convert a request into a self-contained implementation prompt.
 - `implement(prompt)`: runs a fresh Codex implementation pass with no prior context beyond the prompt.
 - `run_pipeline(request, repo_path)`: runs both steps in sequence, saves the generated prompt to `.agent_prompts/`, and returns the implementation result.
+- `run_here(request)`: runs the full pipeline against a configured default repository, intended for easy invocation from a Codex session.
 - `prompts://history`: returns the 10 most recent saved prompts.
 
 The pipeline separates planning from execution:
@@ -81,6 +82,26 @@ You can also use `python` directly:
 }
 ```
 
+If your MCP host supports environment variables, you can also set a default target repository for the `run_here` tool:
+
+```json
+{
+    "mcpServers": {
+        "bridge-builder": {
+            "command": "uv",
+            "args": [
+                "run",
+                "python",
+                "/absolute/path/to/bridge-builder/main.py"
+            ],
+            "env": {
+                "BRIDGE_BUILDER_DEFAULT_REPO": "/absolute/path/to/target/repo"
+            }
+        }
+    }
+}
+```
+
 ## Tool Usage
 
 ### `analyze_request`
@@ -131,6 +152,70 @@ Returns a dictionary with:
 - `implementation_result`
 - `post_verification` when local checks were run
 
+### `run_here`
+
+Inputs:
+
+- `request`
+
+Returns the same payload as `run_pipeline`, plus:
+
+- `resolved_repo_path`
+
+Notes:
+
+- `run_here` uses `BRIDGE_BUILDER_DEFAULT_REPO` when set
+- if `BRIDGE_BUILDER_DEFAULT_REPO` is not set, it falls back to the server process working directory when that differs from the bridge-builder app directory
+- if neither source resolves a usable repository, the tool raises an error and you should use `run_pipeline` with an explicit `repo_path`
+
+## Using From a Codex Session
+
+There are two good ways to use this server from an active Codex session.
+
+### 1. Direct MCP tool call
+
+Ask Codex to invoke the server directly:
+
+```text
+Use the bridge-builder MCP server and run:
+run_pipeline(
+  request="Add X feature",
+  repo_path="/absolute/path/to/current/repo"
+)
+```
+
+If you configured `BRIDGE_BUILDER_DEFAULT_REPO`, the shorter version is:
+
+```text
+Use the bridge-builder MCP server and run:
+run_here(
+  request="Add X feature"
+)
+```
+
+### 2. Skill wrapper
+
+This repository includes a skill template at `codex-skills/bridge-builder-delegate/SKILL.md`.
+
+Install it into your Codex skills directory, for example:
+
+```bash
+mkdir -p "$CODEX_HOME/skills/bridge-builder-delegate"
+cp codex-skills/bridge-builder-delegate/SKILL.md \
+  "$CODEX_HOME/skills/bridge-builder-delegate/SKILL.md"
+```
+
+Once installed, you can use prompts like:
+
+```text
+Use the bridge-builder-delegate skill to implement X feature.
+```
+
+The skill is written to:
+
+- call `run_here(request)` when a default repo is configured
+- otherwise call `run_pipeline(request, repo_path)` using the current Codex session working directory
+
 ## How Repository Analysis Works
 
 The orchestrator builds a compact repository digest before calling Codex. It includes:
@@ -154,6 +239,7 @@ export BRIDGE_BUILDER_IMPLEMENTOR_MODEL=gpt-5.4
 export BRIDGE_BUILDER_ORCHESTRATOR_REASONING=high
 export BRIDGE_BUILDER_IMPLEMENTOR_REASONING=medium
 export BRIDGE_BUILDER_CODEX_TIMEOUT_SECONDS=1800
+export BRIDGE_BUILDER_DEFAULT_REPO=/absolute/path/to/target/repo
 export BRIDGE_BUILDER_ENABLE_POST_VERIFY=1
 export BRIDGE_BUILDER_POST_VERIFY_TIMEOUT_SECONDS=300
 export BRIDGE_BUILDER_ALLOW_PACKAGE_SCRIPT_VERIFY=0

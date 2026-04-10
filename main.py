@@ -155,6 +155,7 @@ DEFAULT_IMPLEMENTOR_REASONING = os.getenv(
 DEFAULT_TIMEOUT_SECONDS = int(
     os.getenv("BRIDGE_BUILDER_CODEX_TIMEOUT_SECONDS", "1800")
 )
+DEFAULT_REPO_PATH = os.getenv("BRIDGE_BUILDER_DEFAULT_REPO", "").strip()
 POST_VERIFY_ENABLED = os.getenv("BRIDGE_BUILDER_ENABLE_POST_VERIFY", "1") != "0"
 POST_VERIFY_TIMEOUT_SECONDS = int(
     os.getenv("BRIDGE_BUILDER_POST_VERIFY_TIMEOUT_SECONDS", "300")
@@ -1053,6 +1054,29 @@ def _extract_repo_root(prompt: str) -> Path | None:
     return Path(match.group(1)).expanduser().resolve()
 
 
+def _resolve_repo_path(repo_path: str) -> Path:
+    repo = Path(repo_path).expanduser().resolve()
+    if not repo.exists():
+        raise FileNotFoundError(f"Repository path does not exist: {repo}")
+    if not repo.is_dir():
+        raise NotADirectoryError(f"Repository path is not a directory: {repo}")
+    return repo
+
+
+def _resolve_default_repo_path() -> Path:
+    if DEFAULT_REPO_PATH:
+        return _resolve_repo_path(DEFAULT_REPO_PATH)
+
+    cwd = Path.cwd().resolve()
+    if cwd != APP_ROOT:
+        return _resolve_repo_path(str(cwd))
+
+    raise ValueError(
+        "No default repository is configured. Set BRIDGE_BUILDER_DEFAULT_REPO "
+        "or call run_pipeline/analyze_request with an explicit repo_path."
+    )
+
+
 def _render_implementation_result(payload: dict[str, Any]) -> str:
     sections: list[str] = [payload["summary"].strip()]
     touched_files = payload.get("touched_files") or []
@@ -1237,12 +1261,7 @@ def _run_codex_exec_capture_last_message(
 @mcp.tool()
 def analyze_request(request: str, repo_path: str) -> str:
     """Analyze a request and return only the generated implementation prompt."""
-    repo = Path(repo_path).expanduser().resolve()
-    if not repo.exists():
-        raise FileNotFoundError(f"Repository path does not exist: {repo}")
-    if not repo.is_dir():
-        raise NotADirectoryError(f"Repository path is not a directory: {repo}")
-
+    repo = _resolve_repo_path(repo_path)
     repo_context = _build_repo_context(repo, request)
 
     full_prompt = (
@@ -1321,6 +1340,15 @@ def run_pipeline(request: str, repo_path: str) -> dict[str, Any]:
     }
     if post_verification:
         response["post_verification"] = post_verification
+    return response
+
+
+@mcp.tool()
+def run_here(request: str) -> dict[str, Any]:
+    """Run the full pipeline against the configured default repository."""
+    repo = _resolve_default_repo_path()
+    response = run_pipeline(request=request, repo_path=str(repo))
+    response["resolved_repo_path"] = str(repo)
     return response
 
 
