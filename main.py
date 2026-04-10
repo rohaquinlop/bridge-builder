@@ -9,12 +9,11 @@ import subprocess
 import tempfile
 import tomllib
 import xml.etree.ElementTree as ET
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from fastmcp import FastMCP
-
 
 APP_ROOT = Path(__file__).resolve().parent
 PROMPT_DIR = APP_ROOT / ".agent_prompts"
@@ -141,7 +140,9 @@ MAX_REPRESENTATIVE_FILES = 8
 MAX_SYMBOLS_PER_FILE = 20
 MAX_DETAILED_SOURCE_FILES = 3
 IMPLEMENTATION_HEADER = "## IMPLEMENTATION PROMPT"
-DEFAULT_ORCHESTRATOR_MODEL = os.getenv("BRIDGE_BUILDER_ORCHESTRATOR_MODEL", "gpt-5.4")
+DEFAULT_ORCHESTRATOR_MODEL = os.getenv(
+    "BRIDGE_BUILDER_ORCHESTRATOR_MODEL", "gpt-5.4"
+)
 DEFAULT_IMPLEMENTOR_MODEL = os.getenv(
     "BRIDGE_BUILDER_IMPLEMENTOR_MODEL", "gpt-5.4"
 )
@@ -151,7 +152,9 @@ DEFAULT_ORCHESTRATOR_REASONING = os.getenv(
 DEFAULT_IMPLEMENTOR_REASONING = os.getenv(
     "BRIDGE_BUILDER_IMPLEMENTOR_REASONING", "medium"
 )
-DEFAULT_TIMEOUT_SECONDS = int(os.getenv("BRIDGE_BUILDER_CODEX_TIMEOUT_SECONDS", "1800"))
+DEFAULT_TIMEOUT_SECONDS = int(
+    os.getenv("BRIDGE_BUILDER_CODEX_TIMEOUT_SECONDS", "1800")
+)
 POST_VERIFY_ENABLED = os.getenv("BRIDGE_BUILDER_ENABLE_POST_VERIFY", "1") != "0"
 POST_VERIFY_TIMEOUT_SECONDS = int(
     os.getenv("BRIDGE_BUILDER_POST_VERIFY_TIMEOUT_SECONDS", "300")
@@ -307,7 +310,10 @@ def _extract_key_value_lines(text: str, keys: tuple[str, ...]) -> list[str]:
     matched: list[str] = []
     for line in text.splitlines():
         stripped = line.strip()
-        if any(stripped.startswith(f"{key} ") or stripped.startswith(f"{key}=") for key in keys):
+        if any(
+            stripped.startswith(f"{key} ") or stripped.startswith(f"{key}=")
+            for key in keys
+        ):
             matched.append(stripped)
     return matched
 
@@ -345,8 +351,10 @@ def _extract_manifest_file_hints(repo_path: Path) -> set[Path]:
 
     def add_if_file(candidate: Path) -> None:
         resolved = candidate.resolve()
-        if resolved.exists() and resolved.is_file() and (
-            resolved == repo_path or repo_path in resolved.parents
+        if (
+            resolved.exists()
+            and resolved.is_file()
+            and (resolved == repo_path or repo_path in resolved.parents)
         ):
             hints.add(resolved)
 
@@ -385,7 +393,9 @@ def _extract_manifest_file_hints(repo_path: Path) -> set[Path]:
             bins = data.get("bin") or []
             if isinstance(bins, list):
                 for item in bins:
-                    if isinstance(item, dict) and isinstance(item.get("path"), str):
+                    if isinstance(item, dict) and isinstance(
+                        item.get("path"), str
+                    ):
                         add_if_file(repo_path / item["path"])
             lib = data.get("lib") or {}
             if isinstance(lib, dict) and isinstance(lib.get("path"), str):
@@ -404,10 +414,16 @@ def _extract_manifest_file_hints(repo_path: Path) -> set[Path]:
 
     pom_xml = repo_path / "pom.xml"
     if pom_xml.is_file():
-        for source_root in (repo_path / "src/main/java", repo_path / "src/main/kotlin"):
+        for source_root in (
+            repo_path / "src/main/java",
+            repo_path / "src/main/kotlin",
+        ):
             if source_root.is_dir():
                 for path in source_root.rglob("*"):
-                    if path.is_file() and path.suffix.lower() in SOURCE_FILE_SUFFIXES:
+                    if (
+                        path.is_file()
+                        and path.suffix.lower() in SOURCE_FILE_SUFFIXES
+                    ):
                         add_if_file(path)
 
     return hints
@@ -435,7 +451,9 @@ def _summarize_manifest(path: Path, repo_path: Path) -> str:
     if name in {"tsconfig.json", "deno.json", "deno.jsonc"}:
         data = _safe_json_loads(raw)
         if isinstance(data, dict):
-            compiler_options = sorted((data.get("compilerOptions") or {}).keys())
+            compiler_options = sorted(
+                (data.get("compilerOptions") or {}).keys()
+            )
             return (
                 f"{rel}: compilerOptions={', '.join(compiler_options[:8]) or '[none]'}; "
                 f"include={data.get('include', '[none]')}; exclude={data.get('exclude', '[none]')}"
@@ -454,9 +472,20 @@ def _summarize_manifest(path: Path, repo_path: Path) -> str:
                 f"scripts={', '.join(sorted(scripts.keys())[:8]) or '[none]'}"
             )
         lines = _extract_key_value_lines(
-            raw, ("name", "version", "requires-python", "dependencies", "build-backend")
+            raw,
+            (
+                "name",
+                "version",
+                "requires-python",
+                "dependencies",
+                "build-backend",
+            ),
         )
-        return f"{rel}: " + ("; ".join(lines[:8]) if lines else "Python project metadata detected")
+        return f"{rel}: " + (
+            "; ".join(lines[:8])
+            if lines
+            else "Python project metadata detected"
+        )
 
     if name == "Cargo.toml":
         data = _safe_toml_loads(raw)
@@ -510,7 +539,9 @@ def _summarize_manifest(path: Path, repo_path: Path) -> str:
                 in_require_block = False
             elif stripped.startswith("require "):
                 requires += 1
-            elif in_require_block and stripped and not stripped.startswith("//"):
+            elif (
+                in_require_block and stripped and not stripped.startswith("//")
+            ):
                 requires += 1
         return (
             f"{rel}: module={module_name or '[unknown]'}; "
@@ -548,7 +579,14 @@ def _summarize_manifest(path: Path, repo_path: Path) -> str:
             f"services={', '.join(services[:8]) or '[none]'}"
         )
 
-    if name in {"Cargo.toml", "go.mod", "pom.xml", "composer.json", "Gemfile", "mix.exs"}:
+    if name in {
+        "Cargo.toml",
+        "go.mod",
+        "pom.xml",
+        "composer.json",
+        "Gemfile",
+        "mix.exs",
+    }:
         preview = "\n".join(raw.splitlines()[:20]).strip()
         return f"{rel}:\n{preview or '[empty]'}"
 
@@ -588,11 +626,19 @@ def _extract_symbols(path: Path) -> list[str]:
         ]
     elif suffix in {".js", ".jsx", ".ts", ".tsx"}:
         patterns = [
-            re.compile(r"(?m)^\s*export\s+(?:default\s+)?class\s+([A-Za-z_][A-Za-z0-9_]*)"),
+            re.compile(
+                r"(?m)^\s*export\s+(?:default\s+)?class\s+([A-Za-z_][A-Za-z0-9_]*)"
+            ),
             re.compile(r"(?m)^\s*class\s+([A-Za-z_][A-Za-z0-9_]*)"),
-            re.compile(r"(?m)^\s*export\s+(?:async\s+)?function\s+([A-Za-z_][A-Za-z0-9_]*)\s*\("),
-            re.compile(r"(?m)^\s*(?:async\s+)?function\s+([A-Za-z_][A-Za-z0-9_]*)\s*\("),
-            re.compile(r"(?m)^\s*export\s+const\s+([A-Za-z_][A-Za-z0-9_]*)\s*="),
+            re.compile(
+                r"(?m)^\s*export\s+(?:async\s+)?function\s+([A-Za-z_][A-Za-z0-9_]*)\s*\("
+            ),
+            re.compile(
+                r"(?m)^\s*(?:async\s+)?function\s+([A-Za-z_][A-Za-z0-9_]*)\s*\("
+            ),
+            re.compile(
+                r"(?m)^\s*export\s+const\s+([A-Za-z_][A-Za-z0-9_]*)\s*="
+            ),
             re.compile(r"(?m)^\s*const\s+([A-Za-z_][A-Za-z0-9_]*)\s*="),
             re.compile(r"(?m)^\s*interface\s+([A-Za-z_][A-Za-z0-9_]*)"),
             re.compile(r"(?m)^\s*type\s+([A-Za-z_][A-Za-z0-9_]*)\s*="),
@@ -611,34 +657,73 @@ def _extract_symbols(path: Path) -> list[str]:
     elif suffix == ".go":
         patterns = [
             re.compile(r"(?m)^\s*type\s+([A-Za-z_][A-Za-z0-9_]*)\s+struct\b"),
-            re.compile(r"(?m)^\s*type\s+([A-Za-z_][A-Za-z0-9_]*)\s+interface\b"),
-            re.compile(r"(?m)^\s*func\s+(?:\([^)]+\)\s*)?([A-Za-z_][A-Za-z0-9_]*)\s*\("),
+            re.compile(
+                r"(?m)^\s*type\s+([A-Za-z_][A-Za-z0-9_]*)\s+interface\b"
+            ),
+            re.compile(
+                r"(?m)^\s*func\s+(?:\([^)]+\)\s*)?([A-Za-z_][A-Za-z0-9_]*)\s*\("
+            ),
         ]
     elif suffix in {".java", ".kt", ".scala"}:
         patterns = [
-            re.compile(r"(?m)^\s*(?:public\s+)?class\s+([A-Za-z_][A-Za-z0-9_]*)"),
-            re.compile(r"(?m)^\s*(?:public\s+)?interface\s+([A-Za-z_][A-Za-z0-9_]*)"),
-            re.compile(r"(?m)^\s*(?:public\s+)?enum\s+([A-Za-z_][A-Za-z0-9_]*)"),
-            re.compile(r"(?m)^\s*(?:public\s+)?(?:static\s+)?(?:suspend\s+)?fun\s+([A-Za-z_][A-Za-z0-9_]*)\s*\("),
-            re.compile(r"(?m)^\s*(?:public|private|protected)?\s*(?:static\s+)?[\w<>\[\]?]+\s+([A-Za-z_][A-Za-z0-9_]*)\s*\("),
+            re.compile(
+                r"(?m)^\s*(?:public\s+)?class\s+([A-Za-z_][A-Za-z0-9_]*)"
+            ),
+            re.compile(
+                r"(?m)^\s*(?:public\s+)?interface\s+([A-Za-z_][A-Za-z0-9_]*)"
+            ),
+            re.compile(
+                r"(?m)^\s*(?:public\s+)?enum\s+([A-Za-z_][A-Za-z0-9_]*)"
+            ),
+            re.compile(
+                r"(?m)^\s*(?:public\s+)?(?:static\s+)?(?:suspend\s+)?fun\s+([A-Za-z_][A-Za-z0-9_]*)\s*\("
+            ),
+            re.compile(
+                r"(?m)^\s*(?:public|private|protected)?\s*(?:static\s+)?[\w<>\[\]?]+\s+([A-Za-z_][A-Za-z0-9_]*)\s*\("
+            ),
             re.compile(r"(?m)^\s*object\s+([A-Za-z_][A-Za-z0-9_]*)"),
         ]
     elif suffix == ".cs":
         patterns = [
-            re.compile(r"(?m)^\s*(?:public|internal|private|protected)?\s*(?:sealed\s+)?class\s+([A-Za-z_][A-Za-z0-9_]*)"),
-            re.compile(r"(?m)^\s*(?:public|internal|private|protected)?\s*interface\s+([A-Za-z_][A-Za-z0-9_]*)"),
-            re.compile(r"(?m)^\s*(?:public|internal|private|protected)?\s*enum\s+([A-Za-z_][A-Za-z0-9_]*)"),
-            re.compile(r"(?m)^\s*(?:public|private|protected|internal)?\s*(?:static\s+)?(?:async\s+)?[\w<>\[\],?]+\s+([A-Za-z_][A-Za-z0-9_]*)\s*\("),
+            re.compile(
+                r"(?m)^\s*(?:public|internal|private|protected)?\s*(?:sealed\s+)?class\s+([A-Za-z_][A-Za-z0-9_]*)"
+            ),
+            re.compile(
+                r"(?m)^\s*(?:public|internal|private|protected)?\s*interface\s+([A-Za-z_][A-Za-z0-9_]*)"
+            ),
+            re.compile(
+                r"(?m)^\s*(?:public|internal|private|protected)?\s*enum\s+([A-Za-z_][A-Za-z0-9_]*)"
+            ),
+            re.compile(
+                r"(?m)^\s*(?:public|private|protected|internal)?\s*(?:static\s+)?(?:async\s+)?[\w<>\[\],?]+\s+([A-Za-z_][A-Za-z0-9_]*)\s*\("
+            ),
         ]
-    elif suffix in {".rb", ".php", ".swift", ".ex", ".exs", ".clj", ".dart", ".zig"}:
+    elif suffix in {
+        ".rb",
+        ".php",
+        ".swift",
+        ".ex",
+        ".exs",
+        ".clj",
+        ".dart",
+        ".zig",
+    }:
         patterns = [
-            re.compile(r"(?m)^\s*(?:class|module|struct|enum|protocol|trait)\s+([A-Za-z_][A-Za-z0-9_:]*)"),
-            re.compile(r"(?m)^\s*(?:def|func|fn)\s+([A-Za-z_][A-Za-z0-9_!?]*)\s*(?:\(|$)"),
+            re.compile(
+                r"(?m)^\s*(?:class|module|struct|enum|protocol|trait)\s+([A-Za-z_][A-Za-z0-9_:]*)"
+            ),
+            re.compile(
+                r"(?m)^\s*(?:def|func|fn)\s+([A-Za-z_][A-Za-z0-9_!?]*)\s*(?:\(|$)"
+            ),
         ]
     elif suffix in {".c", ".cc", ".cpp", ".h", ".hpp"}:
         patterns = [
-            re.compile(r"(?m)^\s*(?:class|struct|enum)\s+([A-Za-z_][A-Za-z0-9_]*)"),
-            re.compile(r"(?m)^\s*[\w\*\s]+\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^;]*\)\s*\{"),
+            re.compile(
+                r"(?m)^\s*(?:class|struct|enum)\s+([A-Za-z_][A-Za-z0-9_]*)"
+            ),
+            re.compile(
+                r"(?m)^\s*[\w\*\s]+\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^;]*\)\s*\{"
+            ),
         ]
     elif suffix == ".sh":
         patterns = [
@@ -671,10 +756,15 @@ def _collect_key_files(repo_path: Path) -> list[Path]:
 
 def _collect_representative_source_files(repo_path: Path) -> list[Path]:
     candidates: list[Path] = []
-    for path in sorted(repo_path.rglob("*"), key=lambda item: str(item).lower()):
+    for path in sorted(
+        repo_path.rglob("*"), key=lambda item: str(item).lower()
+    ):
         if not path.is_file():
             continue
-        if any(part in {".git", ".venv", "__pycache__", "node_modules"} for part in path.parts):
+        if any(
+            part in {".git", ".venv", "__pycache__", "node_modules"}
+            for part in path.parts
+        ):
             continue
         if path.name.startswith("."):
             continue
@@ -685,7 +775,7 @@ def _collect_representative_source_files(repo_path: Path) -> list[Path]:
     changed_files = {path.resolve() for path in _git_changed_files(repo_path)}
     manifest_hints = _extract_manifest_file_hints(repo_path)
 
-    def score(path: Path) -> tuple[int, int, int, int, str]:
+    def score(path: Path) -> tuple[int, int, int, int, int, str]:
         rel = path.relative_to(repo_path)
         parts = rel.parts
         depth = len(parts)
@@ -695,18 +785,25 @@ def _collect_representative_source_files(repo_path: Path) -> list[Path]:
 
         entrypoint_score = 1 if name_lower in ENTRYPOINT_FILE_NAMES else 0
         root_score = 1 if depth == 1 else 0
-        high_signal_dir_score = 1 if parent_names.intersection(HIGH_SIGNAL_DIR_NAMES) else 0
-        name_signal_score = 1 if stem_lower in {
-            "main",
-            "app",
-            "server",
-            "api",
-            "core",
-            "index",
-            "lib",
-            "program",
-            "application",
-        } else 0
+        high_signal_dir_score = (
+            1 if parent_names.intersection(HIGH_SIGNAL_DIR_NAMES) else 0
+        )
+        name_signal_score = (
+            1
+            if stem_lower
+            in {
+                "main",
+                "app",
+                "server",
+                "api",
+                "core",
+                "index",
+                "lib",
+                "program",
+                "application",
+            }
+            else 0
+        )
         changed_score = 1 if path.resolve() in changed_files else 0
         manifest_hint_score = 1 if path.resolve() in manifest_hints else 0
 
@@ -746,7 +843,9 @@ def _format_file_section(repo_path: Path, paths: list[Path], title: str) -> str:
     return "\n".join(sections)
 
 
-def _format_symbol_section(repo_path: Path, paths: list[Path], title: str) -> str:
+def _format_symbol_section(
+    repo_path: Path, paths: list[Path], title: str
+) -> str:
     if not paths:
         return f"{title}:\n[None found]"
 
@@ -759,7 +858,9 @@ def _format_symbol_section(repo_path: Path, paths: list[Path], title: str) -> st
     return "\n".join(sections)
 
 
-def _format_manifest_summary_section(repo_path: Path, paths: list[Path], title: str) -> str:
+def _format_manifest_summary_section(
+    repo_path: Path, paths: list[Path], title: str
+) -> str:
     if not paths:
         return f"{title}:\n[None found]"
 
@@ -836,7 +937,9 @@ def _build_repo_context(repo_path: Path, request: str) -> str:
         f"Repository tree (max depth 3):\n{_repo_tree(repo_path)}",
         f"Git status:\n{_git_status(repo_path)}",
         f"README contents:\n{readme or '[No README found]'}",
-        _format_manifest_summary_section(repo_path, key_files, "Manifest and build summaries"),
+        _format_manifest_summary_section(
+            repo_path, key_files, "Manifest and build summaries"
+        ),
         _format_file_section(repo_path, key_files, "Key project files"),
         _format_symbol_section(
             repo_path,
@@ -891,7 +994,10 @@ def _snapshot_repo_files(repo_root: Path) -> dict[Path, tuple[int, int]]:
     for path in repo_root.rglob("*"):
         if not path.is_file():
             continue
-        if any(part in {".git", ".venv", "__pycache__", "node_modules"} for part in path.parts):
+        if any(
+            part in {".git", ".venv", "__pycache__", "node_modules"}
+            for part in path.parts
+        ):
             continue
         try:
             stat = path.stat()
@@ -925,7 +1031,10 @@ def _extract_implementation_prompt(text: str) -> str:
 def _prompt_audit_path() -> Path:
     PROMPT_DIR.mkdir(parents=True, exist_ok=True)
     gitignore_path = PROMPT_DIR / ".gitignore"
-    if not gitignore_path.exists() or gitignore_path.read_text(encoding="utf-8") != PROMPT_GITIGNORE:
+    if (
+        not gitignore_path.exists()
+        or gitignore_path.read_text(encoding="utf-8") != PROMPT_GITIGNORE
+    ):
         gitignore_path.write_text(PROMPT_GITIGNORE, encoding="utf-8")
     timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
     return PROMPT_DIR / f"{timestamp}.md"
@@ -959,7 +1068,9 @@ def _render_implementation_result(payload: dict[str, Any]) -> str:
     return "\n".join(sections)
 
 
-def _normalize_touched_files(repo_root: Path | None, touched_files: list[str]) -> list[Path]:
+def _normalize_touched_files(
+    repo_root: Path | None, touched_files: list[str]
+) -> list[Path]:
     if repo_root is None:
         return []
     normalized: list[Path] = []
@@ -1014,11 +1125,24 @@ def _package_json_data(repo_root: Path) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else None
 
 
-def _safe_post_verify_commands(repo_root: Path, touched_files: list[Path]) -> list[list[str]]:
+def _safe_post_verify_commands(
+    repo_root: Path, touched_files: list[Path]
+) -> list[list[str]]:
     commands: list[list[str]] = []
 
     if any(path.suffix.lower() == ".py" for path in touched_files):
-        commands.append(["python3", "-m", "py_compile", *[str(path) for path in touched_files if path.suffix.lower() == ".py"]])
+        commands.append(
+            [
+                "python3",
+                "-m",
+                "py_compile",
+                *[
+                    str(path)
+                    for path in touched_files
+                    if path.suffix.lower() == ".py"
+                ],
+            ]
+        )
 
     if (repo_root / "Cargo.toml").is_file() and shutil.which("cargo"):
         commands.append(["cargo", "check"])
@@ -1028,14 +1152,24 @@ def _safe_post_verify_commands(repo_root: Path, touched_files: list[Path]) -> li
 
     if ALLOW_PACKAGE_SCRIPT_VERIFY:
         package_data = _package_json_data(repo_root)
-        scripts = package_data.get("scripts") if isinstance(package_data, dict) else {}
-        if isinstance(scripts, dict) and "typecheck" in scripts and shutil.which("npm"):
+        scripts = (
+            package_data.get("scripts")
+            if isinstance(package_data, dict)
+            else {}
+        )
+        if (
+            isinstance(scripts, dict)
+            and "typecheck" in scripts
+            and shutil.which("npm")
+        ):
             commands.append(["npm", "run", "typecheck"])
 
     return commands
 
 
-def _post_verify(repo_root: Path | None, touched_files: list[str]) -> list[dict[str, Any]]:
+def _post_verify(
+    repo_root: Path | None, touched_files: list[str]
+) -> list[dict[str, Any]]:
     if not POST_VERIFY_ENABLED or repo_root is None:
         return []
 
@@ -1056,7 +1190,9 @@ def _post_verify(repo_root: Path | None, touched_files: list[str]) -> list[dict[
     return results
 
 
-def _common_codex_exec_args(model: str, reasoning_effort: str, cwd: Path | None) -> list[str]:
+def _common_codex_exec_args(
+    model: str, reasoning_effort: str, cwd: Path | None
+) -> list[str]:
     args = [
         "codex",
         "exec",
@@ -1163,19 +1299,23 @@ def run_pipeline(request: str, repo_path: str) -> dict[str, Any]:
     before_snapshot = _snapshot_repo_files(repo_root) if repo_root else {}
     implementation_payload = _run_implementation_agent(generated_prompt)
     after_snapshot = _snapshot_repo_files(repo_root) if repo_root else {}
-    detected_changed_files = _detect_snapshot_changes(before_snapshot, after_snapshot)
+    detected_changed_files = _detect_snapshot_changes(
+        before_snapshot, after_snapshot
+    )
     merged_touched_files = _merge_touched_files(
         repo_root,
         implementation_payload.get("touched_files") or [],
         detected_changed_files,
     )
     implementation_payload["touched_files"] = merged_touched_files
-    implementation_result = _render_implementation_result(implementation_payload)
+    implementation_result = _render_implementation_result(
+        implementation_payload
+    )
     post_verification = _post_verify(
         repo_root,
         merged_touched_files,
     )
-    response = {
+    response: dict[str, Any] = {
         "generated_prompt": generated_prompt,
         "implementation_result": implementation_result,
     }

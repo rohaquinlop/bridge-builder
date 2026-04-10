@@ -10,3 +10,15 @@ dependencies = [
 
 [project.scripts]
 bridge-builder = "main:main"
+
+[tool.ruff]
+line-length = 80
+
+[tool.ruff.lint]
+select = ["I"]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.15.10",
+    "ty>=0.0.29",
+]

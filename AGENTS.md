@@ -2,28 +2,29 @@
 
 ## Project Structure & Module Organization
 
-The repository is intentionally small. [`main.py`](main.py) contains the full FastMCP server, including tool definitions, repository-context extraction, Codex subprocess orchestration, and post-run verification hooks. [`README.md`](README.md) documents setup and host registration. [`pyproject.toml`](pyproject.toml) defines packaging and dependencies, and [`uv.lock`](uv.lock) pins the resolved environment. Generated implementation prompts are stored in `.agent_prompts/` at runtime; that directory is protected by an auto-generated `.gitignore` so prompt history stays out of Git by default.
+This repository is intentionally small. `main.py` contains the full FastMCP server, including MCP tools, repository analysis, Codex subprocess orchestration, prompt auditing, and post-verification hooks. `README.md` explains installation and host setup. `pyproject.toml` defines the package metadata and dependency on `fastmcp`, while `uv.lock` pins the environment. Runtime prompt history is written to `.agent_prompts/` and is ignored by Git by default.
 
 ## Build, Test, and Development Commands
 
-- `uv add fastmcp`: add or update dependencies in the project environment.
+- `uv sync`: install project dependencies into the local environment.
 - `uv run python main.py`: run the MCP server over stdio.
-- `python3 -m py_compile main.py`: fast syntax check using the system interpreter.
+- `uv run bridge-builder`: run via the configured script entrypoint.
+- `python3 -m py_compile main.py`: quick syntax check with the system interpreter.
 - `uv run python -m py_compile main.py`: syntax check inside the project environment.
-- `uv run python -c 'from main import _build_repo_context; ...'`: ad hoc validation for context-building helpers.
+- `uv run python - <<'PY' ... PY`: use for focused helper validation during development.
 
 ## Coding Style & Naming Conventions
 
-Use Python 3.12+ features already present in the codebase, including type hints and standard-library parsing utilities. Follow 4-space indentation and keep functions focused and small. Prefer private helper names with a leading underscore for internal pipeline logic, for example `_build_repo_context` or `_post_verify`. Keep new configuration flags in uppercase module-level constants sourced from environment variables.
+Use Python 3.12+ features already present in the codebase, including type hints and standard-library parsers such as `tomllib`. Follow 4-space indentation and keep helpers small and single-purpose. Internal functions should use a leading underscore, for example `_build_repo_context` or `_post_verify`. Add new environment-based settings as uppercase module constants near the top of `main.py`.
 
 ## Testing Guidelines
 
-There is no dedicated test suite yet. For now, validate changes with `python3 -m py_compile main.py` and `uv run python -m py_compile main.py`, then run small `uv run python -c '...'` checks against the specific helper you changed. If you add tests later, place them under `tests/` and prefer focused unit tests around manifest parsing, symbol extraction, and pipeline helpers.
+There is no formal test suite yet. At minimum, run both compile checks before committing. When changing parsing, ranking, or verification logic, add targeted `uv run python - <<'PY' ... PY` probes against the specific helper or a temporary repository. If a `tests/` directory is added later, prefer unit tests around manifest parsing, symbol extraction, and pipeline behavior.
 
 ## Commit & Pull Request Guidelines
 
-This repository does not yet have established Git history, so use short imperative commit messages such as `Add manifest-aware post verification`. Pull requests should explain the behavioral change, note any new environment variables, and include example MCP inputs or command outputs when the change affects orchestration or verification behavior.
+Current history uses short imperative commit messages such as `Build bridge-builder MCP server` and `Harden pipeline verification and prompt auditing`. Follow that style. Pull requests should summarize the behavior change, note any new environment variables or verification hooks, and include example tool inputs or outputs when user-facing behavior changes.
 
 ## Security & Configuration Tips
 
-This server executes `codex` subprocesses and optional local verification commands. Keep post-verification hooks conservative by default, and avoid enabling arbitrary package-script execution unless you trust the target repository. Use environment variables to tune models, reasoning effort, and verification behavior without hardcoding machine-specific settings.
+This server executes `codex` subprocesses and optional local verification commands. Keep post-verification conservative by default, and only enable package-script verification for trusted repositories. Avoid hardcoding machine-specific paths; prefer environment variables and documented MCP host config.
