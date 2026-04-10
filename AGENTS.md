@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-The repository is intentionally small. [`main.py`](main.py) contains the full FastMCP server, including tool definitions, repository-context extraction, Codex subprocess orchestration, and post-run verification hooks. [`README.md`](README.md) documents setup and host registration. [`pyproject.toml`](pyproject.toml) defines packaging and dependencies, and [`uv.lock`](uv.lock) pins the resolved environment. Generated implementation prompts are stored in `.agent_prompts/` at runtime.
+The repository is intentionally small. [`main.py`](main.py) contains the full FastMCP server, including tool definitions, repository-context extraction, Codex subprocess orchestration, and post-run verification hooks. [`README.md`](README.md) documents setup and host registration. [`pyproject.toml`](pyproject.toml) defines packaging and dependencies, and [`uv.lock`](uv.lock) pins the resolved environment. Generated implementation prompts are stored in `.agent_prompts/` at runtime; that directory is protected by an auto-generated `.gitignore` so prompt history stays out of Git by default.
 
 ## Build, Test, and Development Commands
 

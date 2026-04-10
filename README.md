@@ -55,12 +55,16 @@ Example config:
 
 ```json
 {
-  "mcpServers": {
-    "bridge-builder": {
-      "command": "uv",
-      "args": ["run", "python", "/absolute/path/to/bridge-builder/main.py"]
+    "mcpServers": {
+        "bridge-builder": {
+            "command": "uv",
+            "args": [
+                "run",
+                "python",
+                "/absolute/path/to/bridge-builder/main.py"
+            ]
+        }
     }
-  }
 }
 ```
 
@@ -68,12 +72,12 @@ You can also use `python` directly:
 
 ```json
 {
-  "mcpServers": {
-    "bridge-builder": {
-      "command": "python",
-      "args": ["/absolute/path/to/bridge-builder/main.py"]
+    "mcpServers": {
+        "bridge-builder": {
+            "command": "python",
+            "args": ["/absolute/path/to/bridge-builder/main.py"]
+        }
     }
-  }
 }
 ```
 
@@ -94,8 +98,8 @@ Example:
 
 ```json
 {
-  "request": "Add a CLI flag to export results as JSON",
-  "repo_path": "/path/to/repo"
+    "request": "Add a CLI flag to export results as JSON",
+    "repo_path": "/path/to/repo"
 }
 ```
 
@@ -108,6 +112,11 @@ Inputs:
 Returns:
 
 - a concise rendered result based on structured implementor output
+
+Notes:
+
+- the prompt must include `Repository root: /absolute/path`
+- in normal usage, pass the output of `analyze_request` directly into `implement`
 
 ### `run_pipeline`
 
@@ -140,10 +149,10 @@ This makes the server general-purpose instead of being tied to one stack.
 Environment variables:
 
 ```bash
-export BRIDGE_BUILDER_ORCHESTRATOR_MODEL=gpt-5.2
-export BRIDGE_BUILDER_IMPLEMENTOR_MODEL=gpt-5.2-codex
+export BRIDGE_BUILDER_ORCHESTRATOR_MODEL=gpt-5.4
+export BRIDGE_BUILDER_IMPLEMENTOR_MODEL=gpt-5.4
 export BRIDGE_BUILDER_ORCHESTRATOR_REASONING=high
-export BRIDGE_BUILDER_IMPLEMENTOR_REASONING=xhigh
+export BRIDGE_BUILDER_IMPLEMENTOR_REASONING=medium
 export BRIDGE_BUILDER_CODEX_TIMEOUT_SECONDS=1800
 export BRIDGE_BUILDER_ENABLE_POST_VERIFY=1
 export BRIDGE_BUILDER_POST_VERIFY_TIMEOUT_SECONDS=300
@@ -152,8 +161,8 @@ export BRIDGE_BUILDER_ALLOW_PACKAGE_SCRIPT_VERIFY=0
 
 Default behavior:
 
-- Agent 1 uses `gpt-5.2` with `high` reasoning
-- Agent 2 uses `gpt-5.2-codex` with `xhigh` reasoning
+- Agent 1 uses `gpt-5.4` with `high` reasoning
+- Agent 2 uses `gpt-5.4` with `medium` reasoning
 - both agents run with `codex exec --ephemeral`
 
 ## Post-Verification
@@ -166,6 +175,8 @@ After `run_pipeline`, the server can run lightweight local checks based on the t
 
 `npm run ...` verification is disabled by default because package scripts are arbitrary code. Enable it only if you trust the target repository.
 
+The pipeline does not rely only on the model's reported `touched_files`. `run_pipeline` also snapshots the repository before and after implementation and merges detected file changes into post-verification input.
+
 ## Auditing
 
 Every generated implementation prompt from `run_pipeline` is saved under:
@@ -173,6 +184,8 @@ Every generated implementation prompt from `run_pipeline` is saved under:
 ```text
 .agent_prompts/
 ```
+
+The server ensures `.agent_prompts/.gitignore` contains `*`, so saved prompt history is skipped by Git by default.
 
 Use the `prompts://history` resource to inspect the most recent saved prompts.
 

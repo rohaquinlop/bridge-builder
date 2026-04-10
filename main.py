@@ -18,6 +18,7 @@ from fastmcp import FastMCP
 
 APP_ROOT = Path(__file__).resolve().parent
 PROMPT_DIR = APP_ROOT / ".agent_prompts"
+PROMPT_GITIGNORE = "*\n"
 README_CANDIDATES = ("README.md", "README.rst", "README.txt")
 KEY_CONTEXT_FILES = (
     "pyproject.toml",
@@ -140,15 +141,15 @@ MAX_REPRESENTATIVE_FILES = 8
 MAX_SYMBOLS_PER_FILE = 20
 MAX_DETAILED_SOURCE_FILES = 3
 IMPLEMENTATION_HEADER = "## IMPLEMENTATION PROMPT"
-DEFAULT_ORCHESTRATOR_MODEL = os.getenv("BRIDGE_BUILDER_ORCHESTRATOR_MODEL", "gpt-5.2")
+DEFAULT_ORCHESTRATOR_MODEL = os.getenv("BRIDGE_BUILDER_ORCHESTRATOR_MODEL", "gpt-5.4")
 DEFAULT_IMPLEMENTOR_MODEL = os.getenv(
-    "BRIDGE_BUILDER_IMPLEMENTOR_MODEL", "gpt-5.2-codex"
+    "BRIDGE_BUILDER_IMPLEMENTOR_MODEL", "gpt-5.4"
 )
 DEFAULT_ORCHESTRATOR_REASONING = os.getenv(
     "BRIDGE_BUILDER_ORCHESTRATOR_REASONING", "high"
 )
 DEFAULT_IMPLEMENTOR_REASONING = os.getenv(
-    "BRIDGE_BUILDER_IMPLEMENTOR_REASONING", "xhigh"
+    "BRIDGE_BUILDER_IMPLEMENTOR_REASONING", "medium"
 )
 DEFAULT_TIMEOUT_SECONDS = int(os.getenv("BRIDGE_BUILDER_CODEX_TIMEOUT_SECONDS", "1800"))
 POST_VERIFY_ENABLED = os.getenv("BRIDGE_BUILDER_ENABLE_POST_VERIFY", "1") != "0"
@@ -885,6 +886,32 @@ def _run_local_command(args: list[str], cwd: Path) -> tuple[int, str, str]:
     return result.returncode, result.stdout.strip(), result.stderr.strip()
 
 
+def _snapshot_repo_files(repo_root: Path) -> dict[Path, tuple[int, int]]:
+    snapshot: dict[Path, tuple[int, int]] = {}
+    for path in repo_root.rglob("*"):
+        if not path.is_file():
+            continue
+        if any(part in {".git", ".venv", "__pycache__", "node_modules"} for part in path.parts):
+            continue
+        try:
+            stat = path.stat()
+        except OSError:
+            continue
+        snapshot[path.resolve()] = (stat.st_mtime_ns, stat.st_size)
+    return snapshot
+
+
+def _detect_snapshot_changes(
+    before: dict[Path, tuple[int, int]],
+    after: dict[Path, tuple[int, int]],
+) -> list[Path]:
+    changed: list[Path] = []
+    for path, metadata in after.items():
+        if before.get(path) != metadata:
+            changed.append(path)
+    return sorted(changed)
+
+
 def _extract_implementation_prompt(text: str) -> str:
     pattern = rf"(?ims)^\s*{re.escape(IMPLEMENTATION_HEADER)}\s*$\n?(.*)$"
     match = re.search(pattern, text)
@@ -897,6 +924,9 @@ def _extract_implementation_prompt(text: str) -> str:
 
 def _prompt_audit_path() -> Path:
     PROMPT_DIR.mkdir(parents=True, exist_ok=True)
+    gitignore_path = PROMPT_DIR / ".gitignore"
+    if not gitignore_path.exists() or gitignore_path.read_text(encoding="utf-8") != PROMPT_GITIGNORE:
+        gitignore_path.write_text(PROMPT_GITIGNORE, encoding="utf-8")
     timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
     return PROMPT_DIR / f"{timestamp}.md"
 
@@ -945,6 +975,35 @@ def _normalize_touched_files(repo_root: Path | None, touched_files: list[str]) -
         seen.add(path)
         normalized.append(path)
     return normalized
+
+
+def _merge_touched_files(
+    repo_root: Path | None,
+    reported_files: list[str],
+    detected_files: list[Path],
+) -> list[str]:
+    merged: list[str] = []
+    seen: set[str] = set()
+
+    for rel_path in reported_files:
+        if rel_path not in seen:
+            seen.add(rel_path)
+            merged.append(rel_path)
+
+    if repo_root is None:
+        return merged
+
+    for path in detected_files:
+        try:
+            rel_path = str(path.relative_to(repo_root))
+        except ValueError:
+            continue
+        if rel_path in seen:
+            continue
+        seen.add(rel_path)
+        merged.append(rel_path)
+
+    return merged
 
 
 def _package_json_data(repo_root: Path) -> dict[str, Any] | None:
@@ -1075,6 +1134,10 @@ def implement(prompt: str) -> str:
 
 def _run_implementation_agent(prompt: str) -> dict[str, Any]:
     repo_root = _extract_repo_root(prompt)
+    if repo_root is None:
+        raise ValueError(
+            'Implementation prompt must include a line like "Repository root: /absolute/path".'
+        )
     implementation_prompt = (
         f"<system>\n{IMPLEMENTOR_INSTRUCTIONS}\n</system>\n\n"
         f"<user>\n{prompt}\n</user>\n"
@@ -1096,11 +1159,21 @@ def run_pipeline(request: str, repo_path: str) -> dict[str, Any]:
     """Generate an implementation prompt, save it, then run the implementation agent."""
     generated_prompt = analyze_request(request=request, repo_path=repo_path)
     _save_prompt(generated_prompt)
+    repo_root = _extract_repo_root(generated_prompt)
+    before_snapshot = _snapshot_repo_files(repo_root) if repo_root else {}
     implementation_payload = _run_implementation_agent(generated_prompt)
+    after_snapshot = _snapshot_repo_files(repo_root) if repo_root else {}
+    detected_changed_files = _detect_snapshot_changes(before_snapshot, after_snapshot)
+    merged_touched_files = _merge_touched_files(
+        repo_root,
+        implementation_payload.get("touched_files") or [],
+        detected_changed_files,
+    )
+    implementation_payload["touched_files"] = merged_touched_files
     implementation_result = _render_implementation_result(implementation_payload)
     post_verification = _post_verify(
-        _extract_repo_root(generated_prompt),
-        implementation_payload.get("touched_files") or [],
+        repo_root,
+        merged_touched_files,
     )
     response = {
         "generated_prompt": generated_prompt,
