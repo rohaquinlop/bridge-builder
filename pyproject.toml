@@ -1,0 +1,12 @@
+[project]
+name = "bridge-builder"
+version = "0.1.0"
+description = "Local FastMCP server that runs a Codex-based two-agent pipeline"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastmcp",
+]
+
+[project.scripts]
+bridge-builder = "main:main"
