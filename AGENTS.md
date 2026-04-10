@@ -2,29 +2,29 @@
 
 ## Project Structure & Module Organization
 
-This repository is intentionally small. `main.py` contains the full FastMCP server, including MCP tools, repository analysis, Codex subprocess orchestration, prompt auditing, and post-verification hooks. `README.md` explains installation and host setup. `pyproject.toml` defines the package metadata and dependency on `fastmcp`, while `uv.lock` pins the environment. Runtime prompt history is written to `.agent_prompts/` and is ignored by Git by default.
+This repository is intentionally compact. [`main.py`](/Users/rhafid/personal-projects/bridge-builder/main.py) contains the FastMCP server, MCP tool definitions, repository analysis, Codex subprocess orchestration, prompt auditing, and post-verification logic. [`README.md`](/Users/rhafid/personal-projects/bridge-builder/README.md) covers installation, MCP host setup, and runtime behavior. [`pyproject.toml`](/Users/rhafid/personal-projects/bridge-builder/pyproject.toml) defines package metadata, the `bridge-builder` script entrypoint, and dev tooling. [`codex-skills/bridge-builder-delegate/SKILL.md`](/Users/rhafid/personal-projects/bridge-builder/codex-skills/bridge-builder-delegate/SKILL.md) provides the optional Codex skill wrapper. Runtime prompt history is stored under `.agent_prompts/` and should stay out of Git.
 
 ## Build, Test, and Development Commands
 
-- `uv sync`: install project dependencies into the local environment.
-- `uv run python main.py`: run the MCP server over stdio.
-- `uv run bridge-builder`: run via the configured script entrypoint.
-- `python3 -m py_compile main.py`: quick syntax check with the system interpreter.
-- `uv run python -m py_compile main.py`: syntax check inside the project environment.
-- `uv run python - <<'PY' ... PY`: use for focused helper validation during development.
+- `uv sync`: install project and dev dependencies from [`uv.lock`](/Users/rhafid/personal-projects/bridge-builder/uv.lock).
+- `uv run python main.py`: start the MCP server over stdio.
+- `uv run bridge-builder`: run the same server through the package entrypoint.
+- `uv run ruff check .`: run import-order linting configured in `pyproject.toml`.
+- `uv run ty check`: run static type checks.
+- `uv run python -m py_compile main.py`: quick syntax verification inside the project environment.
 
 ## Coding Style & Naming Conventions
 
-Use Python 3.12+ features already present in the codebase, including type hints and standard-library parsers such as `tomllib`. Follow 4-space indentation and keep helpers small and single-purpose. Internal functions should use a leading underscore, for example `_build_repo_context` or `_post_verify`. Add new environment-based settings as uppercase module constants near the top of `main.py`.
+Use Python 3.12+ and keep changes compatible with the existing single-module layout. Follow 4-space indentation, add type hints for new helpers, and prefer small focused functions. Use `snake_case` for functions and local variables, `UPPER_CASE` for module constants and environment flags, and leading underscores for private helpers such as `_post_verify`. Keep Ruff’s 80-character line target in mind.
 
 ## Testing Guidelines
 
-There is no formal test suite yet. At minimum, run both compile checks before committing. When changing parsing, ranking, or verification logic, add targeted `uv run python - <<'PY' ... PY` probes against the specific helper or a temporary repository. If a `tests/` directory is added later, prefer unit tests around manifest parsing, symbol extraction, and pipeline behavior.
+There is no dedicated `tests/` directory yet, so every change should at least pass lint, type checks, and `py_compile`. For logic changes, add a focused probe with `uv run python - <<'PY'` against the affected helper or run the server locally and exercise the relevant MCP path. If you add formal tests later, place them under `tests/` and mirror the behavior-oriented naming used by the runtime code.
 
 ## Commit & Pull Request Guidelines
 
-Current history uses short imperative commit messages such as `Build bridge-builder MCP server` and `Harden pipeline verification and prompt auditing`. Follow that style. Pull requests should summarize the behavior change, note any new environment variables or verification hooks, and include example tool inputs or outputs when user-facing behavior changes.
+Recent commits use short imperative subjects, for example `Add linting and typing checks`. Follow that pattern and keep each commit scoped to one change. Pull requests should explain the behavior change, note any new environment variables or verification hooks, and include concrete examples when tool inputs or outputs change.
 
 ## Security & Configuration Tips
 
-This server executes `codex` subprocesses and optional local verification commands. Keep post-verification conservative by default, and only enable package-script verification for trusted repositories. Avoid hardcoding machine-specific paths; prefer environment variables and documented MCP host config.
+This server launches `codex` subprocesses and can run local verification commands against target repositories. Keep verification conservative, avoid hardcoded machine-specific paths, and prefer environment variables such as `BRIDGE_BUILDER_DEFAULT_REPO` for configuration.
