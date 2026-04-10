@@ -2,6 +2,36 @@
 
 Local FastMCP server that exposes a two-agent Codex pipeline over stdio. It is designed to work against many repository types and programming languages by inferring stack details from manifests, source symbols, and repository structure.
 
+## Quick Start
+
+`bridge-builder` is a local command-backed MCP server. The MCP server is the
+main product. Agent-specific wrappers sit on top of it:
+
+- Codex: install the skill from
+  `codex-skills/bridge-builder-delegate/SKILL.md`
+- Claude Code: install the slash command from
+  `.claude/commands/bridge-builder.md`
+
+Typical setup:
+
+1. Install and run the server with `uv sync`.
+2. Register the `bridge-builder` MCP server in your host config.
+3. Copy the wrapper that matches your agent.
+4. Paste the corresponding invocation pattern:
+
+For Codex:
+
+```text
+Use the bridge-builder-delegate skill to:
+<your implementation request>
+```
+
+For Claude Code:
+
+```text
+/bridge-builder <your implementation request>
+```
+
 ## What This Server Does
 
 The server exposes:
@@ -61,8 +91,9 @@ Example config:
             "command": "uv",
             "args": [
                 "run",
-                "python",
-                "/absolute/path/to/bridge-builder/main.py"
+                "--directory",
+                "/absolute/path/to/bridge-builder",
+                "bridge-builder"
             ]
         }
     }
@@ -91,8 +122,9 @@ If your MCP host supports environment variables, you can also set a default targ
             "command": "uv",
             "args": [
                 "run",
-                "python",
-                "/absolute/path/to/bridge-builder/main.py"
+                "--directory",
+                "/absolute/path/to/bridge-builder",
+                "bridge-builder"
             ],
             "env": {
                 "BRIDGE_BUILDER_DEFAULT_REPO": "/absolute/path/to/target/repo"
@@ -168,13 +200,40 @@ Notes:
 - if `BRIDGE_BUILDER_DEFAULT_REPO` is not set, it falls back to the server process working directory when that differs from the bridge-builder app directory
 - if neither source resolves a usable repository, the tool raises an error and you should use `run_pipeline` with an explicit `repo_path`
 
-## Using From a Codex Session
+## Command vs Skill
 
-There are two good ways to use this server from an active Codex session.
+This project is best treated as a local command-backed MCP server first.
+Agent-specific wrappers sit on top of that server:
 
-### 1. Direct MCP tool call
+- Codex: use a skill wrapper
+- Claude Code: use a slash command wrapper
 
-Ask Codex to invoke the server directly:
+The wrapper choice is about ergonomics, not capability. Both wrappers should
+call the same `bridge-builder` MCP server tools.
+
+## Agent Wrappers
+
+### Codex
+
+Codex should use a skill, not a slash command. This repository includes a
+skill template at `codex-skills/bridge-builder-delegate/SKILL.md`.
+
+Install it into your Codex skills directory:
+
+```bash
+mkdir -p "$CODEX_HOME/skills/bridge-builder-delegate"
+cp codex-skills/bridge-builder-delegate/SKILL.md \
+  "$CODEX_HOME/skills/bridge-builder-delegate/SKILL.md"
+```
+
+Then paste prompts like:
+
+```text
+Use the bridge-builder-delegate skill to:
+Add a CLI flag to export results as JSON.
+```
+
+Or, if you prefer calling the MCP tool directly from Codex, paste:
 
 ```text
 Use the bridge-builder MCP server and run:
@@ -184,37 +243,91 @@ run_pipeline(
 )
 ```
 
-If you configured `BRIDGE_BUILDER_DEFAULT_REPO`, the shorter version is:
+If you configured `BRIDGE_BUILDER_DEFAULT_REPO`, you can paste:
 
 ```text
 Use the bridge-builder MCP server and run:
 run_here(
-  request="Add X feature"
+  request="Add a CLI flag to export results as JSON"
 )
 ```
 
-### 2. Skill wrapper
-
-This repository includes a skill template at `codex-skills/bridge-builder-delegate/SKILL.md`.
-
-Install it into your Codex skills directory, for example:
-
-```bash
-mkdir -p "$CODEX_HOME/skills/bridge-builder-delegate"
-cp codex-skills/bridge-builder-delegate/SKILL.md \
-  "$CODEX_HOME/skills/bridge-builder-delegate/SKILL.md"
-```
-
-Once installed, you can use prompts like:
-
-```text
-Use the bridge-builder-delegate skill to implement X feature.
-```
-
-The skill is written to:
+The Codex skill is written to:
 
 - call `run_here(request)` when a default repo is configured
-- otherwise call `run_pipeline(request, repo_path)` using the current Codex session working directory
+- otherwise call `run_pipeline(request, repo_path)` using the current Codex
+  session working directory
+
+### Claude Code
+
+Claude Code should use a slash command. This repository includes a project
+command template at `.claude/commands/bridge-builder.md`.
+
+To install it into another repository or your home-level Claude commands,
+copy the file into one of these locations:
+
+```bash
+mkdir -p /path/to/target-repo/.claude/commands
+cp .claude/commands/bridge-builder.md \
+  /path/to/target-repo/.claude/commands/bridge-builder.md
+```
+
+Or for a user-level install:
+
+```bash
+mkdir -p "$HOME/.claude/commands"
+cp .claude/commands/bridge-builder.md \
+  "$HOME/.claude/commands/bridge-builder.md"
+```
+
+Then in Claude Code, type:
+
+```text
+/bridge-builder Add a CLI flag to export results as JSON.
+```
+
+The Claude command is written to:
+
+- treat the slash-command arguments as the implementation request
+- call `run_here(request)` when a default repo is configured
+- otherwise call `run_pipeline(request, repo_path)` using the current working
+  directory
+
+## Copy/Paste by Agent
+
+Use these exact patterns depending on the agent you are in.
+
+### Codex with skill installed
+
+```text
+Use the bridge-builder-delegate skill to:
+<your implementation request>
+```
+
+### Codex without skill
+
+```text
+Use the bridge-builder MCP server and run:
+run_pipeline(
+  request="<your implementation request>",
+  repo_path="/absolute/path/to/current/repo"
+)
+```
+
+### Codex with `BRIDGE_BUILDER_DEFAULT_REPO` configured
+
+```text
+Use the bridge-builder MCP server and run:
+run_here(
+  request="<your implementation request>"
+)
+```
+
+### Claude Code with command installed
+
+```text
+/bridge-builder <your implementation request>
+```
 
 ## How Repository Analysis Works
 
